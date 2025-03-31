@@ -22,23 +22,21 @@ wheels/
 
 # Virtual Environment
 venv/
-env/
 ENV/
-.env
 
 # IDE
-.idea/
 .vscode/
-*.swp
-*.swo
-.DS_Store
+.idea/
+
+# Database
+*.db
 
 # Testing
 .coverage
-htmlcov/
 .pytest_cache/
-.tox/
+htmlcov/
 
-# Logs
-*.log
-logs/ 
+# Misc
+.DS_Store
+.env
+*.log 

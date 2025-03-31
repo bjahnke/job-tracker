@@ -5,6 +5,7 @@ click>=8.0.0
 streamlit>=1.32.0
 pandas>=2.2.0
 openpyxl>=3.1.2  # For Excel file support
+invoke>=2.7.0    # For CLI tasks
 
 # Testing
 pytest>=7.0.0
