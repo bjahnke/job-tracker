@@ -185,6 +185,10 @@ def get_company_stats(applications):
         'Applied Date': 'Most Recent'
     })
     
+    # Calculate days since last application
+    today = pd.Timestamp.now()
+    stats['Days Since Last'] = (today - stats['Most Recent']).dt.days
+    
     # Sort by number of applications (descending)
     stats = stats.sort_values('Applications', ascending=False)
     
