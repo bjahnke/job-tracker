@@ -220,7 +220,15 @@ def main():
         if applications:
             # Display company statistics
             st.subheader("Company Statistics")
+            
+            # Add search functionality for company stats
+            company_search = st.text_input("Search companies", key="company_search")
+            
+            # Get and filter company stats
             company_stats = get_company_stats(applications)
+            if company_search:
+                company_stats = company_stats[company_stats.index.str.lower().str.contains(company_search.lower(), na=False)]
+            
             st.dataframe(
                 company_stats,
                 use_container_width=True,
