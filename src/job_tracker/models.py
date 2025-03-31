@@ -38,6 +38,7 @@ class UserPreferences(Base):
     show_archived = Column(Boolean, default=False)
     show_date_archived = Column(Boolean, default=False)
     show_notes = Column(Boolean, default=True)
+    show_job_url = Column(Boolean, default=True)  # Add Job URL preference
 
     @classmethod
     def get_default_preferences(cls):
@@ -50,7 +51,8 @@ class UserPreferences(Base):
             'Status Date': False,
             'Archived': False,
             'Date Archived': False,
-            'Notes': True
+            'Notes': True,
+            'Job URL': True  # Add Job URL to defaults
         }
 
     def to_dict(self):
@@ -63,7 +65,8 @@ class UserPreferences(Base):
             'Status Date': self.show_status_date,
             'Archived': self.show_archived,
             'Date Archived': self.show_date_archived,
-            'Notes': self.show_notes
+            'Notes': self.show_notes,
+            'Job URL': self.show_job_url  # Add Job URL to dictionary conversion
         }
 
     @classmethod
@@ -84,6 +87,7 @@ class UserPreferences(Base):
         prefs.show_archived = preferences_dict.get('Archived', False)
         prefs.show_date_archived = preferences_dict.get('Date Archived', False)
         prefs.show_notes = preferences_dict.get('Notes', True)
+        prefs.show_job_url = preferences_dict.get('Job URL', True)  # Add Job URL to preference update
         
         session.commit()
         return prefs

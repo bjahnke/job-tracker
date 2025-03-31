@@ -4,21 +4,10 @@ from datetime import datetime
 from job_tracker.models import JobApplication, UserPreferences, init_db
 import numpy as np
 import hashlib
+import uuid
 
 # Initialize database session for the Streamlit app
 db = init_db()
-
-# Define default column visibility
-DEFAULT_VISIBLE_COLUMNS = {
-    'Job Title': True,
-    'Company': True,
-    'Status': True,
-    'Applied Date': True,
-    'Status Date': False,
-    'Archived': False,
-    'Date Archived': False,
-    'Notes': True
-}
 
 def clean_value(value):
     """Clean a value from the DataFrame, handling NaN and None"""
@@ -144,16 +133,62 @@ def get_visible_columns():
     # Create checkboxes for each column
     visible_columns = {}
     preferences_dict = prefs.to_dict()
+    changed = False
+    
     for col, default_visible in preferences_dict.items():
         # Ensure we're using a boolean value
-        visible_columns[col] = st.sidebar.checkbox(f"{col}", value=bool(default_visible))
+        current_value = bool(default_visible)
+        new_value = st.sidebar.checkbox(f"Show {col}", value=current_value)
+        visible_columns[col] = new_value
+        
+        if current_value != new_value:
+            changed = True
     
-    # Save preferences if they've changed
-    if visible_columns != preferences_dict:
+    # Save preferences and rerun if they've changed
+    if changed:
         UserPreferences.from_dict(db, visible_columns)
+        st.rerun()
     
     # Return list of columns that are checked
     return [col for col, is_visible in visible_columns.items() if is_visible]
+
+def format_job_url(url):
+    """Format job URL as a clickable link if it exists"""
+    if pd.isna(url) or not url:
+        return ""  # Return empty string instead of None for better display
+    return f'<a href="{url}" target="_blank">View Job</a>'
+
+def get_company_stats(applications):
+    """Calculate statistics for each company
+    
+    Args:
+        applications: List of JobApplication objects
+        
+    Returns:
+        DataFrame with company statistics
+    """
+    # Convert applications to DataFrame for easier analysis
+    df = pd.DataFrame([{
+        'Company': app.company_name,
+        'Applied Date': app.applied_date
+    } for app in applications])
+    
+    # Filter out rows with None dates
+    df = df.dropna(subset=['Applied Date'])
+    
+    # Group by company and calculate stats
+    stats = df.groupby('Company').agg({
+        'Company': 'count',  # Number of applications
+        'Applied Date': 'max'  # Most recent application
+    }).rename(columns={
+        'Company': 'Applications',
+        'Applied Date': 'Most Recent'
+    })
+    
+    # Sort by number of applications (descending)
+    stats = stats.sort_values('Applications', ascending=False)
+    
+    return stats
 
 def main():
     st.title("Job Application Tracker")
@@ -174,14 +209,23 @@ def main():
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
 
-    # Display data table
-    st.subheader("Your Applications")
-    
     try:
         # Get all applications from database
         applications = db.query(JobApplication).all()
         
         if applications:
+            # Display company statistics
+            st.subheader("Company Statistics")
+            company_stats = get_company_stats(applications)
+            st.dataframe(
+                company_stats,
+                use_container_width=True,
+                height=300
+            )
+            
+            # Display data table
+            st.subheader("Your Applications")
+            
             # Convert to DataFrame for display
             data = []
             for app in applications:
@@ -193,7 +237,8 @@ def main():
                     'Status Date': app.status_date,
                     'Archived': app.archived,
                     'Date Archived': app.date_archived,
-                    'Notes': app.notes
+                    'Notes': app.notes,
+                    'Job URL': app.job_url
                 })
             
             df_display = pd.DataFrame(data)
@@ -208,8 +253,30 @@ def main():
             df_filtered = search_applications(df_display, search_term)
             
             if not df_filtered.empty:
-                # Display only selected columns
-                st.dataframe(df_filtered[visible_columns])
+                # Configure column settings
+                kwargs = {}
+                if 'Job URL' in df_filtered.columns and 'Job URL' in visible_columns:
+                    kwargs['column_config'] = {
+                        'Job URL': st.column_config.LinkColumn(
+                            display_text='🔗 View Job',
+                            width='small'
+                        )
+                    }
+                    # Ensure Job URL appears first in the column order
+                    kwargs['column_order'] = ['Job URL'] + [col for col in visible_columns if col != 'Job URL']
+                
+                # Generate a unique identifier for the session
+                session_id = uuid.uuid4()
+                st.session_state['session_id'] = session_id
+                
+                # Display DataFrame with styled columns
+                st.data_editor(
+                    df_filtered[visible_columns],
+                    key=str(session_id),
+                    use_container_width=True,
+                    height=1000,
+                    **kwargs
+                )
             else:
                 st.info("No applications found matching your search.")
         else:
