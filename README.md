@@ -3,7 +3,6 @@
 A tool to help track job applications, interviews, and follow-ups throughout your job search process.
 
 ## Features (Planned)
-- UI includes ability to upload csv from simplify.jobs's application tracker
 - A company table which lists all of the unique company names in the DB
 - Track job applications and their status
 - Manage interview schedules and follow-ups

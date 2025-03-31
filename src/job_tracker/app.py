@@ -1,12 +1,24 @@
 import pandas as pd
 import streamlit as st
 from datetime import datetime
-from job_tracker.models import JobApplication, init_db
+from job_tracker.models import JobApplication, UserPreferences, init_db
 import numpy as np
 import hashlib
 
 # Initialize database session for the Streamlit app
 db = init_db()
+
+# Define default column visibility
+DEFAULT_VISIBLE_COLUMNS = {
+    'Job Title': True,
+    'Company': True,
+    'Status': True,
+    'Applied Date': True,
+    'Status Date': False,
+    'Archived': False,
+    'Date Archived': False,
+    'Notes': True
+}
 
 def clean_value(value):
     """Clean a value from the DataFrame, handling NaN and None"""
@@ -95,6 +107,54 @@ def process_csv(df, session=None):
         db_session.rollback()
         raise e
 
+def search_applications(df, query):
+    """Search applications using pandas DataFrame query
+    
+    Args:
+        df: pandas DataFrame containing application data
+        query: Search query string to match against job title, company name, or notes
+        
+    Returns:
+        DataFrame containing matching applications
+    """
+    if not query:
+        return df
+    
+    # Create a case-insensitive search pattern
+    search_pattern = query.lower()
+    
+    # Create a mask for matching rows
+    mask = (
+        df['Job Title'].str.lower().str.contains(search_pattern, na=False) |
+        df['Company'].str.lower().str.contains(search_pattern, na=False) |
+        df['Notes'].str.lower().str.contains(search_pattern, na=False)
+    )
+    
+    return df[mask]
+
+def get_visible_columns():
+    """Get the list of columns to display based on user preferences"""
+    st.sidebar.header("Column Visibility")
+    
+    # Get preferences from database or use defaults
+    prefs = db.query(UserPreferences).first()
+    if not prefs:
+        prefs = UserPreferences.from_dict(db, UserPreferences.get_default_preferences())
+    
+    # Create checkboxes for each column
+    visible_columns = {}
+    preferences_dict = prefs.to_dict()
+    for col, default_visible in preferences_dict.items():
+        # Ensure we're using a boolean value
+        visible_columns[col] = st.sidebar.checkbox(f"{col}", value=bool(default_visible))
+    
+    # Save preferences if they've changed
+    if visible_columns != preferences_dict:
+        UserPreferences.from_dict(db, visible_columns)
+    
+    # Return list of columns that are checked
+    return [col for col, is_visible in visible_columns.items() if is_visible]
+
 def main():
     st.title("Job Application Tracker")
     st.write("Upload your Simplify.jobs CSV file to sync your applications")
@@ -138,12 +198,20 @@ def main():
             
             df_display = pd.DataFrame(data)
             
+            # Get visible columns from sidebar
+            visible_columns = get_visible_columns()
+            
             # Add search functionality
             search_term = st.text_input("Search applications", "")
-            if search_term:
-                df_display = df_display[df_display.apply(lambda x: x.astype(str).str.contains(search_term, case=False, na=False)).any(axis=1)]
             
-            st.dataframe(df_display)
+            # Filter DataFrame based on search term
+            df_filtered = search_applications(df_display, search_term)
+            
+            if not df_filtered.empty:
+                # Display only selected columns
+                st.dataframe(df_filtered[visible_columns])
+            else:
+                st.info("No applications found matching your search.")
         else:
             st.info("No applications found. Upload a CSV file to get started!")
     except Exception as e:
